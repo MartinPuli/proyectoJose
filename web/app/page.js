@@ -120,14 +120,7 @@ export default function Home() {
       <header className="topbar">
         <div className="topbar-inner">
           <a className="brand" href="/" aria-label="Finanzas Familia — inicio">
-            <span className="brand-mark" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="17" height="17" fill="none">
-                <rect x="3" y="13" width="4" height="8" rx="1.4" fill="currentColor" />
-                <rect x="10" y="8" width="4" height="13" rx="1.4" fill="currentColor" />
-                <rect x="17" y="3" width="4" height="18" rx="1.4" fill="currentColor" />
-              </svg>
-            </span>
-            <span className="brand-name">Finanzas<span className="brand-sep">·</span><span className="brand-soft">Familia</span></span>
+            <span className="brand-name">Finanzas&nbsp;<span className="brand-soft">Familia</span><span className="brand-dot">.</span></span>
           </a>
           <div className="topbar-actions">
             <span className="year-pill">2026</span>
