@@ -7,7 +7,7 @@ import { resolve } from "path";
 const src = process.argv[2] || resolve(process.cwd(), "..", "Finanzas_Familia_2026.xlsx");
 const buf = readFileSync(src);
 const r = await put("finanzas/Finanzas_Familia_2026.xlsx", buf, {
-  access: "public", addRandomSuffix: false, allowOverwrite: true,
+  access: "private", addRandomSuffix: false, allowOverwrite: true,
   contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 });
 console.log("Planilla subida a Blob:", r.url);

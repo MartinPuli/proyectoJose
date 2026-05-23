@@ -1,7 +1,8 @@
 // Almacenamiento de la planilla.
 // - Local (sin BLOB_READ_WRITE_TOKEN): lee/escribe el archivo Finanzas_Familia_2026.xlsx
 //   que está en la raíz del proyecto. No necesitás Vercel para usarlo en tu compu.
-// - En Vercel (con BLOB_READ_WRITE_TOKEN): usa Vercel Blob.
+// - En Vercel (con BLOB_READ_WRITE_TOKEN): usa Vercel Blob en modo PRIVADO
+//   (los datos de la familia no quedan en una URL pública).
 import { readFile, writeFile } from "fs/promises";
 import { resolve } from "path";
 
@@ -13,13 +14,13 @@ export async function readWorkbookBuffer() {
   if (!useBlob()) {
     return await readFile(LOCAL_PATH);
   }
-  const { list } = await import("@vercel/blob");
-  const { blobs } = await list({ prefix: PATHNAME });
-  if (!blobs.length) {
+  const { get } = await import("@vercel/blob");
+  const res = await get(PATHNAME, { access: "private" });
+  if (!res) {
     throw new Error("No hay planilla en Blob. Subila una vez con: npm run seed");
   }
-  const res = await fetch(blobs[0].url, { cache: "no-store" });
-  return Buffer.from(await res.arrayBuffer());
+  // res.stream es un ReadableStream web → lo pasamos a Buffer.
+  return Buffer.from(await new Response(res.stream).arrayBuffer());
 }
 
 export async function writeWorkbookBuffer(buf) {
@@ -29,7 +30,7 @@ export async function writeWorkbookBuffer(buf) {
   }
   const { put } = await import("@vercel/blob");
   await put(PATHNAME, buf, {
-    access: "public",
+    access: "private",
     addRandomSuffix: false,
     allowOverwrite: true,
     contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

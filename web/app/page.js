@@ -88,26 +88,40 @@ export default function Home() {
   }
 
   return (
-    <div className="wrap">
+    <>
+      <header className="topbar">
+        <div className="topbar-inner">
+          <div className="brand">
+            <span className="brand-mark">F</span>
+            <span className="brand-name">Finanzas <span>· Familia</span></span>
+          </div>
+          <div className="topbar-actions">
+            <span className="year-pill">Activo · 2026</span>
+            <a href="/api/excel"><button type="button" className="btn btn-ghost">Excel</button></a>
+          </div>
+        </div>
+      </header>
+
+      <div className="wrap">
       <header className="masthead">
-        <p className="eyebrow">Economía doméstica · 2026</p>
-        <h1 className="title">El libro de cuentas <em>de la familia</em></h1>
+        <p className="eyebrow">Economía doméstica</p>
+        <h1 className="title">El dinero de la familia, <em>en orden.</em></h1>
         <p className="subtitle">Contale lo que pasó —por voz, texto o una foto del comprobante— y se anota solo en la planilla.</p>
       </header>
 
       <section className="stats">
         <div className="stat ingresos">
-          <div className="lbl">Ingresos del año</div>
+          <div className="lbl"><span className="dot" />Ingresos del año</div>
           <div className="val">{stats ? fmt(stats.total_ingresos) : "—"}</div>
           <div className="sub">alquileres + otros</div>
         </div>
         <div className="stat egresos">
-          <div className="lbl">Egresos del año</div>
+          <div className="lbl"><span className="dot" />Egresos del año</div>
           <div className="val">{stats ? fmt(stats.egresos) : "—"}</div>
           <div className="sub">gastos cargados</div>
         </div>
         <div className="stat neto">
-          <div className="lbl">Resultado neto</div>
+          <div className="lbl"><span className="dot" />Resultado neto</div>
           <div className="val">{stats ? fmt(stats.resultado_neto) : "—"}</div>
           <div className="sub">lo ahorrado</div>
         </div>
@@ -172,6 +186,7 @@ export default function Home() {
       )}
 
       <p className="footnote">Los números se actualizan solos en el Excel · podés editar todo a mano cuando quieras</p>
-    </div>
+      </div>
+    </>
   );
 }
