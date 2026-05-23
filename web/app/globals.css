@@ -72,32 +72,48 @@ body::before {
 /* ============ top bar ============ */
 .topbar {
   position: sticky; top: 0; z-index: 30;
-  backdrop-filter: saturate(160%) blur(12px);
-  -webkit-backdrop-filter: saturate(160%) blur(12px);
-  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  backdrop-filter: saturate(180%) blur(14px);
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
   border-bottom: 1px solid var(--line);
 }
+/* hairline accent that fades across the bar */
+.topbar::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px;
+  background: linear-gradient(90deg, transparent 0%, var(--acc-deep) 35%, var(--acc) 50%, var(--acc-deep) 65%, transparent 100%);
+  opacity: .5;
+}
 .topbar-inner {
+  position: relative;
   max-width: var(--maxw); margin: 0 auto;
   display: flex; align-items: center; justify-content: space-between;
-  gap: 12px; padding: 12px 18px;
+  gap: 12px; padding: 13px 18px;
 }
-.brand { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
+.brand {
+  display: inline-flex; align-items: center; gap: 11px; min-width: 0;
+  text-decoration: none; transition: opacity .18s;
+}
+.brand:hover { opacity: .82; }
+.brand:hover .brand-mark { transform: translateY(-1px) rotate(-3deg); }
 .brand-mark {
-  width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
-  background: var(--ink); color: var(--acc);
+  width: 32px; height: 32px; border-radius: 10px; flex-shrink: 0;
+  background: linear-gradient(155deg, #1c211a 0%, var(--ink) 100%);
+  color: var(--acc);
   display: grid; place-items: center;
-  font-family: var(--font-display); font-weight: 800; font-size: 16px;
-  box-shadow: 0 4px 12px -6px rgba(12, 14, 12, .6);
+  box-shadow: 0 5px 14px -6px rgba(12, 14, 12, .65), inset 0 1px 0 rgba(255, 255, 255, .08);
+  transition: transform .22s cubic-bezier(.22, 1, .36, 1);
 }
+.brand-mark svg { display: block; }
 .brand-name {
-  font-family: var(--font-display); font-weight: 700; font-size: 15.5px;
-  letter-spacing: -.01em; color: var(--ink); white-space: nowrap;
+  font-family: var(--font-display); font-weight: 700; font-size: 16px;
+  letter-spacing: -.02em; color: var(--ink); white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 6px;
 }
-.brand-name span { color: var(--ink-3); font-weight: 500; }
+.brand-sep { color: var(--ink-3); font-weight: 700; }
+.brand-soft { color: var(--ink-3); font-weight: 600; }
 .topbar-actions { display: flex; align-items: center; gap: 8px; }
 .year-pill {
-  font-size: 12px; font-weight: 600; letter-spacing: .02em;
+  font-size: 12px; font-weight: 700; letter-spacing: .03em;
   color: var(--ink-2); background: var(--surface);
   border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px;
   display: inline-flex; align-items: center; gap: 7px;
@@ -105,7 +121,10 @@ body::before {
 .year-pill::before {
   content: ""; width: 7px; height: 7px; border-radius: 50%;
   background: var(--pos); box-shadow: 0 0 0 3px var(--pos-bg);
+  animation: blink 2.4s ease-in-out infinite;
 }
+.topbar-excel .btn { padding: 9px 14px; font-size: 14px; }
+.topbar-excel .btn svg { color: var(--ink-2); }
 
 /* ============ layout ============ */
 .wrap {

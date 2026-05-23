@@ -15,7 +15,10 @@ export async function readWorkbookBuffer() {
     return await readFile(LOCAL_PATH);
   }
   const { get } = await import("@vercel/blob");
-  const res = await get(PATHNAME, { access: "private" });
+  // useCache:false => lee siempre desde el origen, no del CDN.
+  // Sin esto, después de anotar un gasto la lectura devolvía la copia vieja
+  // cacheada y parecía que "el Excel no se actualizaba".
+  const res = await get(PATHNAME, { access: "private", useCache: false });
   if (!res) {
     throw new Error("No hay planilla en Blob. Subila una vez con: npm run seed");
   }
@@ -33,6 +36,7 @@ export async function writeWorkbookBuffer(buf) {
     access: "private",
     addRandomSuffix: false,
     allowOverwrite: true,
+    cacheControlMaxAge: 60, // mínimo permitido; evita que el CDN sirva una planilla vieja
     contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   });
 }

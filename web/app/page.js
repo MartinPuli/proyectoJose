@@ -91,13 +91,26 @@ export default function Home() {
     <>
       <header className="topbar">
         <div className="topbar-inner">
-          <div className="brand">
-            <span className="brand-mark">F</span>
-            <span className="brand-name">Finanzas <span>· Familia</span></span>
-          </div>
+          <a className="brand" href="/" aria-label="Finanzas Familia — inicio">
+            <span className="brand-mark" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="17" height="17" fill="none">
+                <rect x="3" y="13" width="4" height="8" rx="1.4" fill="currentColor" />
+                <rect x="10" y="8" width="4" height="13" rx="1.4" fill="currentColor" />
+                <rect x="17" y="3" width="4" height="18" rx="1.4" fill="currentColor" />
+              </svg>
+            </span>
+            <span className="brand-name">Finanzas<span className="brand-sep">·</span><span className="brand-soft">Familia</span></span>
+          </a>
           <div className="topbar-actions">
-            <span className="year-pill">Activo · 2026</span>
-            <a href="/api/excel"><button type="button" className="btn btn-ghost">Excel</button></a>
+            <span className="year-pill">2026</span>
+            <a href="/api/excel" className="topbar-excel">
+              <button type="button" className="btn btn-ghost">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true">
+                  <path d="M12 3v11m0 0l-4-4m4 4l4-4M5 19h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <span className="excel-label">Excel</span>
+              </button>
+            </a>
           </div>
         </div>
       </header>
