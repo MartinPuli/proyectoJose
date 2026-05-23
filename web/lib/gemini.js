@@ -13,10 +13,20 @@ function buildSystem() {
 Hoy es ${hoy}. Cuando el usuario manda un audio, texto o comprobante, identificá las operaciones
 y cargalas con las herramientas: agregar_cobro (alquileres; identificá al inquilino por nombre o
 local), agregar_movimiento (gastos/ingresos de la familia), actualizar_ipc (índice INDEC, mes YYYY-MM).
-Reglas: si no dicen el año, usá el del día de hoy (${hoy.slice(0, 4)}). Moneda por defecto ARS.
-Para egresos elegí EXACTAMENTE una de estas categorías: ${CATEGORIAS}.
-Si mencionan a un miembro (yo, mi hermana, mi mamá) completá 'miembro'.
-Después de cargar, respondé en español, breve, qué registraste.`;
+
+REGLAS IMPORTANTES:
+- Para registrar SIEMPRE llamá a la herramienta correspondiente. NUNCA digas que registraste,
+  anoté o cargué algo si no llamaste a la herramienta en este mismo turno. No inventes registros.
+- Si falta un dato OBLIGATORIO (sobre todo el MONTO, o a qué inquilino corresponde un cobro),
+  NO adivines: registrá lo que sí puedas y hacé UNA pregunta corta y concreta SOLO por lo que falta.
+- Si el mensaje tiene varias operaciones, registrá todas las que tengan datos completos.
+- Fecha: si no dicen el año, usá ${hoy.slice(0, 4)}. Si no dicen fecha, usá hoy (${hoy}).
+- MONEDA: "dólares", "dolar", "USD", "U$S", "verdes" => USD. "pesos", "mango", "$", o sin aclarar => ARS.
+  "luca"/"lucas" = miles; "palo"/"palos" = millones. Default ARS.
+- Para egresos elegí EXACTAMENTE una de estas categorías: ${CATEGORIAS}.
+- Si mencionan a un miembro (yo, mi hermana, mi mamá) completá 'miembro'.
+- Completá 'descripcion' con un texto corto de qué fue el gasto/ingreso.
+Respondé SIEMPRE en español, breve. Si registraste algo, decí qué. Si te falta info, terminá con la pregunta.`;
 }
 
 const declaraciones = [
@@ -53,7 +63,16 @@ function exec(wb, name, args) {
   }
 }
 
-export async function procesar({ texto, fileBase64, mime, wb }) {
+// historial: [{ rol: "user"|"model", texto: string }] de turnos previos, para que
+// pueda responder repreguntas manteniendo el contexto de la conversación.
+function aHistorialGemini(historial) {
+  if (!Array.isArray(historial)) return [];
+  return historial
+    .filter((h) => h && h.texto)
+    .map((h) => ({ role: h.rol === "model" ? "model" : "user", parts: [{ text: String(h.texto) }] }));
+}
+
+export async function procesar({ texto, fileBase64, mime, wb, historial }) {
   if (!process.env.GEMINI_API_KEY) throw new Error("Falta GEMINI_API_KEY.");
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
   const model = genAI.getGenerativeModel({
@@ -65,7 +84,7 @@ export async function procesar({ texto, fileBase64, mime, wb }) {
   if (fileBase64) parts.push({ inlineData: { data: fileBase64, mimeType: mime || "application/octet-stream" } });
   parts.push({ text: texto || "Procesá el comprobante adjunto y cargá lo que corresponda." });
 
-  const chat = model.startChat();
+  const chat = model.startChat({ history: aHistorialGemini(historial) });
   let result = await chat.sendMessage(parts);
   const operaciones = [];
   for (let i = 0; i < 6; i++) {
@@ -82,5 +101,8 @@ export async function procesar({ texto, fileBase64, mime, wb }) {
   }
   let resumen = "";
   try { resumen = result.response.text(); } catch (e) { resumen = ""; }
-  return { resumen: (resumen || "").trim(), operaciones };
+  resumen = (resumen || "").trim();
+  // Necesita respuesta del usuario si no registró nada, o si terminó preguntando algo.
+  const pregunta = operaciones.length === 0 || /\?\s*$/.test(resumen);
+  return { resumen, operaciones, pregunta };
 }

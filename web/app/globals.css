@@ -90,27 +90,17 @@ body::before {
   gap: 12px; padding: 13px 18px;
 }
 .brand {
-  display: inline-flex; align-items: center; gap: 11px; min-width: 0;
+  display: inline-flex; align-items: center; min-width: 0;
   text-decoration: none; transition: opacity .18s;
 }
-.brand:hover { opacity: .82; }
-.brand:hover .brand-mark { transform: translateY(-1px) rotate(-3deg); }
-.brand-mark {
-  width: 32px; height: 32px; border-radius: 10px; flex-shrink: 0;
-  background: linear-gradient(155deg, #1c211a 0%, var(--ink) 100%);
-  color: var(--acc);
-  display: grid; place-items: center;
-  box-shadow: 0 5px 14px -6px rgba(12, 14, 12, .65), inset 0 1px 0 rgba(255, 255, 255, .08);
-  transition: transform .22s cubic-bezier(.22, 1, .36, 1);
-}
-.brand-mark svg { display: block; }
+.brand:hover { opacity: .7; }
 .brand-name {
-  font-family: var(--font-display); font-weight: 700; font-size: 16px;
-  letter-spacing: -.02em; color: var(--ink); white-space: nowrap;
-  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-display); font-weight: 800; font-size: 19px;
+  letter-spacing: -.045em; color: var(--ink); white-space: nowrap;
+  line-height: 1;
 }
-.brand-sep { color: var(--ink-3); font-weight: 700; }
-.brand-soft { color: var(--ink-3); font-weight: 600; }
+.brand-soft { color: var(--ink-3); font-weight: 800; }
+.brand-dot { color: var(--acc-deep); font-weight: 800; }
 .topbar-actions { display: flex; align-items: center; gap: 8px; }
 .year-pill {
   font-size: 12px; font-weight: 700; letter-spacing: .03em;
@@ -326,5 +316,5 @@ body::before {
   .actions a, .actions > .btn-ghost, .actions label.btn { flex: 1 1 0; }
   .actions a { display: flex; }
   .actions a .btn { width: 100%; }
-  .brand-name span { display: none; }
+  .brand-name { font-size: 17px; }
 }

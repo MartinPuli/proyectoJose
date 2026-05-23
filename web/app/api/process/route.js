@@ -10,6 +10,8 @@ export async function POST(req) {
     const form = await req.formData();
     const texto = form.get("texto") || "";
     const file = form.get("archivo");
+    let historial = [];
+    try { historial = JSON.parse(form.get("historial") || "[]"); } catch (e) { historial = []; }
     let fileBase64 = null, mime = null;
     if (file && typeof file.arrayBuffer === "function" && file.size) {
       const buf = Buffer.from(await file.arrayBuffer());
@@ -17,7 +19,7 @@ export async function POST(req) {
       mime = file.type || null;
     }
     const wb = await loadWB(await readWorkbookBuffer());
-    const res = await procesar({ texto, fileBase64, mime, wb });
+    const res = await procesar({ texto, fileBase64, mime, wb, historial });
     if (res.operaciones.length) await writeWorkbookBuffer(await wbToBuffer(wb));
     return NextResponse.json(res);
   } catch (e) {

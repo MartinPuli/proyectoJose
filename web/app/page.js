@@ -18,6 +18,8 @@ export default function Home() {
   const [texto, setTexto] = useState("");
   const [estado, setEstado] = useState("");
   const [salida, setSalida] = useState(null);
+  const [historial, setHistorial] = useState([]); // [{rol:'user'|'model', texto}]
+  const [pregunta, setPregunta] = useState(false); // la IA espera una respuesta
   const [grabando, setGrabando] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [fileName, setFileName] = useState("");
@@ -26,6 +28,7 @@ export default function Home() {
   const recRef = useRef(null);
   const chunksRef = useRef([]);
   const audioRef = useRef(null);
+  const fieldRef = useRef(null);
 
   async function cargarStats() {
     try {
@@ -35,6 +38,8 @@ export default function Home() {
     } catch (e) { /* sin datos aún */ }
   }
   useEffect(() => { cargarStats(); }, []);
+  // Cuando la IA pregunta, dejamos el cursor listo para responder.
+  useEffect(() => { if (pregunta && fieldRef.current) fieldRef.current.focus(); }, [pregunta]);
 
   async function toggleRec() {
     if (grabando) { recRef.current && recRef.current.stop(); return; }
@@ -54,22 +59,39 @@ export default function Home() {
   }
 
   async function enviar() {
+    const f = fileRef.current && fileRef.current.files[0];
+    const tieneTexto = (texto || "").trim().length > 0;
+    if (!tieneTexto && !f && !audioRef.current) {
+      setEstado("Escribí algo, grabá un audio o adjuntá un comprobante.");
+      return;
+    }
     const fd = new FormData();
     fd.append("texto", texto || "");
-    const f = fileRef.current && fileRef.current.files[0];
+    fd.append("historial", JSON.stringify(historial.slice(-12)));
     if (f) fd.append("archivo", f);
     else if (audioRef.current) fd.append("archivo", audioRef.current, "audio.webm");
-    setEnviando(true); setEstado("Procesando con IA…"); setSalida(null);
+    const textoEnviado = (texto || "").trim() || (f ? "📎 " + f.name : "🎧 audio");
+    setEnviando(true); setEstado(pregunta ? "Pensando tu respuesta…" : "Procesando con IA…");
     try {
       const r = await fetch("/api/process", { method: "POST", body: fd });
       const data = await r.json();
       setSalida(data);
       setEstado("");
+      if (data.error) { setEnviando(false); return; }
+      // Acumulamos la conversación para mantener el contexto en la repregunta.
+      setHistorial((h) => [...h, { rol: "user", texto: textoEnviado }, { rol: "model", texto: data.resumen || "Listo." }]);
+      setPregunta(Boolean(data.pregunta));
       audioRef.current = null; setTexto(""); setFileName("");
       if (fileRef.current) fileRef.current.value = "";
-      if (!data.error) cargarStats();
+      cargarStats();
     } catch (e) { setEstado("Error: " + e.message); }
     finally { setEnviando(false); }
+  }
+
+  function nuevaConsulta() {
+    setHistorial([]); setSalida(null); setPregunta(false); setTexto(""); setFileName("");
+    if (fileRef.current) fileRef.current.value = "";
+    audioRef.current = null; setEstado("");
   }
 
   async function subirExcel(e) {
@@ -86,6 +108,12 @@ export default function Home() {
     } catch (err) { setEstado("Error: " + err.message); }
     e.target.value = "";
   }
+
+  function onKeyDown(e) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); enviar(); }
+  }
+
+  const ops = (salida && !salida.error && salida.operaciones) || [];
 
   return (
     <>
@@ -142,14 +170,18 @@ export default function Home() {
 
       <section className="card">
         <div className="card-head">
-          <h2>Anotar un movimiento</h2>
+          <h2>{pregunta ? "Respondé para completar" : "Anotar un movimiento"}</h2>
           <span className="hint">audio · texto · foto · PDF</span>
         </div>
         <textarea
+          ref={fieldRef}
           className="field"
           value={texto}
           onChange={(e) => setTexto(e.target.value)}
-          placeholder="Ej: «Cobré el alquiler del Local 12, 350 mil por transferencia.»  ·  «Pagué la luz, 48.500 con débito.»  ·  «El IPC de abril dio 7600.»"
+          onKeyDown={onKeyDown}
+          placeholder={pregunta
+            ? "Respondé acá lo que te preguntó (ej: «fueron 48.500 con débito»)…"
+            : "Ej: «Cobré el alquiler del Local 12, 350 mil por transferencia.»  ·  «Pagué la luz, 48.500 con débito.»  ·  «El IPC de abril dio 7600.»"}
         />
         <div className="controls">
           <button className={"mic" + (grabando ? " on" : "")} onClick={toggleRec} title="Grabar audio" aria-label="Grabar audio">
@@ -163,9 +195,13 @@ export default function Home() {
         </div>
         <div className="actions">
           <button className="btn btn-primary" onClick={enviar} disabled={enviando}>
-            {enviando ? "Procesando…" : "Anotar en la planilla →"}
+            {enviando ? "Procesando…" : pregunta ? "Responder →" : "Anotar en la planilla →"}
           </button>
-          <a href="/api/excel"><button type="button" className="btn btn-ghost">Descargar Excel</button></a>
+          {historial.length > 0 && (
+            <button type="button" className="btn btn-ghost" onClick={nuevaConsulta} disabled={enviando}>
+              Empezar de nuevo
+            </button>
+          )}
           <label className="btn btn-ghost" style={{ cursor: "pointer" }}>
             Subir Excel editado
             <input type="file" accept=".xlsx" style={{ display: "none" }} onChange={subirExcel} />
@@ -174,15 +210,45 @@ export default function Home() {
         {estado && <p className="status">{estado}</p>}
       </section>
 
-      {salida && (
+      {(historial.length > 0 || (salida && salida.error)) && (
         <section className="card result">
-          <div className="card-head"><h2>Resultado</h2></div>
-          {salida.error ? (
-            <div className="alert">⚠️ {salida.error}</div>
-          ) : (
-            <>
-              {salida.resumen && <p className="summary-line">{salida.resumen}</p>}
-              {(salida.operaciones || []).map((o, i) => {
+          <div className="card-head">
+            <h2>Conversación</h2>
+            {pregunta && <span className="hint" style={{ color: "#b45309" }}>esperando tu respuesta</span>}
+          </div>
+
+          {salida && salida.error && <div className="alert">⚠️ {salida.error}</div>}
+
+          <div className="thread" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {historial.map((m, i) => {
+              const esIA = m.rol === "model";
+              const ultimo = i === historial.length - 1;
+              return (
+                <div
+                  key={i}
+                  className={"bubble " + (esIA ? "ia" : "yo")}
+                  style={{
+                    alignSelf: esIA ? "flex-start" : "flex-end",
+                    maxWidth: "85%",
+                    padding: "9px 13px",
+                    borderRadius: 14,
+                    fontSize: 14,
+                    lineHeight: 1.4,
+                    whiteSpace: "pre-wrap",
+                    background: esIA ? (ultimo && pregunta ? "#fef3c7" : "#f1f5f9") : "#111827",
+                    color: esIA ? "#0f172a" : "#fff",
+                    border: esIA && ultimo && pregunta ? "1px solid #f59e0b" : "1px solid transparent",
+                  }}
+                >
+                  {esIA ? (ultimo && pregunta ? "🤔 " : "") : "🗣️ "}{m.texto}
+                </div>
+              );
+            })}
+          </div>
+
+          {ops.length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              {ops.map((o, i) => {
                 const c = chipFor(o);
                 return (
                   <div className="op" key={i} style={{ animationDelay: `${i * 60}ms` }}>
@@ -192,13 +258,12 @@ export default function Home() {
                   </div>
                 );
               })}
-              {!(salida.operaciones || []).length && <div className="empty">No se cargó ninguna fila.</div>}
-            </>
+            </div>
           )}
         </section>
       )}
 
-      <p className="footnote">Los números se actualizan solos en el Excel · podés editar todo a mano cuando quieras</p>
+      <p className="footnote">Los números se actualizan solos en el Excel · podés editar todo a mano cuando quieras · Ctrl/⌘ + Enter envía</p>
       </div>
     </>
   );
