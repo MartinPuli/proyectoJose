@@ -21,3 +21,7 @@ venv/
 
 # Carpeta creada por error (git init con path mal formado)
 UsersmartidocumentsproyectojoseproyectoJose/
+
+# Screenshots temporales de verificacion
+*.png
+!finanzas-ui.png
