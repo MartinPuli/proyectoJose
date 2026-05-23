@@ -26,6 +26,11 @@ REGLAS IMPORTANTES:
 - Para egresos elegí EXACTAMENTE una de estas categorías: ${CATEGORIAS}.
 - Si mencionan a un miembro (yo, mi hermana, mi mamá) completá 'miembro'.
 - Completá 'descripcion' con un texto corto de qué fue el gasto/ingreso.
+- MEDIO DE PAGO: si dicen cómo se pagó o cobró, completá SIEMPRE 'medio_pago' con EXACTAMENTE
+  una de estas opciones: Efectivo, Transferencia, Cheque, Débito, Mercado Pago, Otro.
+  Mapeo: "efectivo"/"cash"/"plata" => Efectivo; "transferencia"/"transfer"/"CBU"/"alias" => Transferencia;
+  "cheque"/"echeq" => Cheque; "débito"/"tarjeta de débito" => Débito; "MP"/"mercadopago"/"mercado pago" => Mercado Pago;
+  "crédito"/"tarjeta"/"tarjeta de crédito" o cualquier otro => Otro. Aplica tanto a gastos como a cobros.
 Respondé SIEMPRE en español, breve. Si registraste algo, decí qué. Si te falta info, terminá con la pregunta.`;
 }
 

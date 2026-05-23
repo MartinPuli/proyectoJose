@@ -30,6 +30,17 @@ function parseFecha(s) {
   return isNaN(d.getTime()) ? new Date() : d;
 }
 
+// Tipo de cambio USD→ARS (Parametros!B4, nombre definido "TC").
+function getTC(wb) {
+  try {
+    const par = wb.getWorksheet("Parametros");
+    return Number(par.getCell("B4").value) || 1;
+  } catch (e) { return 1; }
+}
+const esUSD = (moneda) => String(moneda || "").toUpperCase() === "USD";
+const aARS = (monto, moneda, tc) => Math.round(Number(monto) * (esUSD(moneda) ? tc : 1));
+const aUSD = (monto, moneda, tc) => Math.round(esUSD(moneda) ? Number(monto) : Number(monto) / tc);
+
 export function listarInquilinos(wb) {
   const ws = wb.getWorksheet("Inquilinos");
   const out = [];
@@ -57,33 +68,62 @@ export function agregarCobro(wb, a) {
   const ws = wb.getWorksheet("Cobros");
   const r = nextRow(ws, 1, HDR + 1, HDR + 400);
   const row = ws.getRow(r);
-  const c1 = row.getCell(1); c1.value = parseFecha(a.fecha); c1.numFmt = "dd/mm/yyyy";
-  row.getCell(2).value = resolverId(wb, a.id_inquilino, a.inquilino) || null;
+  const tc = getTC(wb);
+  const f = parseFecha(a.fecha);
+  const monto = a.monto != null ? Number(a.monto) : null;
+  const moneda = (a.moneda || "ARS").toUpperCase();
+  const idInq = resolverId(wb, a.id_inquilino, a.inquilino) || null;
+  const c1 = row.getCell(1); c1.value = f; c1.numFmt = "dd/mm/yyyy";
+  row.getCell(2).value = idInq;
+  // Inquilino (col 3): VLOOKUP por ID; cacheamos el nombre resuelto.
+  const nombreInq = idInq != null ? ((listarInquilinos(wb).find((i) => String(i.id) === String(idInq)) || {}).nombre || null) : null;
+  row.getCell(3).value = idInq != null
+    ? { formula: `IF($B${r}="","",IFERROR(VLOOKUP($B${r},Inquilinos!$A:$B,2,0),"ID inexistente"))`, result: nombreInq || "ID inexistente" }
+    : null;
+  // Mes (col 4): =MONTH(fecha) con valor cacheado.
+  row.getCell(4).value = { formula: `IF($A${r}="","",MONTH($A${r}))`, result: f.getMonth() + 1 };
   row.getCell(5).value = a.periodo || null;
-  row.getCell(6).value = a.monto != null ? Number(a.monto) : null;
-  row.getCell(7).value = (a.moneda || "ARS").toUpperCase();
+  row.getCell(6).value = monto;
+  row.getCell(7).value = moneda;
+  // Monto (ARS) col 8 y Monto (USD) col 9: conversión por TC, fórmula + valor cacheado.
+  row.getCell(8).value = monto != null
+    ? { formula: `IF($F${r}="","",IF($G${r}="USD",$F${r}*TC,$F${r}))`, result: aARS(monto, moneda, tc) }
+    : null;
+  row.getCell(9).value = monto != null
+    ? { formula: `IF($F${r}="","",IF($G${r}="USD",$F${r},$F${r}/TC))`, result: aUSD(monto, moneda, tc) }
+    : null;
   row.getCell(10).value = a.medio_pago || null;
   row.getCell(11).value = a.estado || "Cobrado";
   row.getCell(12).value = a.notas || null;
   row.commit && row.commit();
-  return { hoja: "Cobros", fila: r, id_inquilino: row.getCell(2).value, monto: a.monto, moneda: a.moneda || "ARS" };
+  return { hoja: "Cobros", fila: r, id_inquilino: idInq, monto, moneda };
 }
 
 export function agregarMovimiento(wb, a) {
   const ws = wb.getWorksheet("Movimientos");
   const r = nextRow(ws, 1, HDR + 1, HDR + 400);
   const row = ws.getRow(r);
-  const c1 = row.getCell(1); c1.value = parseFecha(a.fecha); c1.numFmt = "dd/mm/yyyy";
+  const tc = getTC(wb);
+  const f = parseFecha(a.fecha);
+  const monto = a.monto != null ? Number(a.monto) : null;
+  const moneda = (a.moneda || "ARS").toUpperCase();
+  const c1 = row.getCell(1); c1.value = f; c1.numFmt = "dd/mm/yyyy";
+  // Mes (col 2): fórmula =MONTH(fecha) con el valor ya cacheado para que se vea al instante.
+  row.getCell(2).value = { formula: `IF($A${r}="","",MONTH($A${r}))`, result: f.getMonth() + 1 };
   row.getCell(3).value = a.tipo || "Egreso";
   row.getCell(4).value = a.miembro || "Familia";
   row.getCell(5).value = a.categoria || null;
   row.getCell(6).value = a.descripcion || null;
-  row.getCell(7).value = a.monto != null ? Number(a.monto) : null;
-  row.getCell(8).value = (a.moneda || "ARS").toUpperCase();
+  row.getCell(7).value = monto;
+  row.getCell(8).value = moneda;
+  // Monto (ARS) (col 9): convierte USD→ARS con TC; fórmula + valor cacheado.
+  row.getCell(9).value = monto != null
+    ? { formula: `IF($G${r}="","",IF($H${r}="USD",$G${r}*TC,$G${r}))`, result: aARS(monto, moneda, tc) }
+    : null;
   row.getCell(10).value = a.medio_pago || null;
   row.getCell(11).value = a.notas || null;
   row.commit && row.commit();
-  return { hoja: "Movimientos", fila: r, tipo: a.tipo || "Egreso", monto: a.monto, categoria: a.categoria };
+  return { hoja: "Movimientos", fila: r, tipo: a.tipo || "Egreso", monto, categoria: a.categoria, medio_pago: a.medio_pago || null };
 }
 
 export function actualizarIpc(wb, a) {
