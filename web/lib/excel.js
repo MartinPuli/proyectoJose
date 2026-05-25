@@ -126,21 +126,6 @@ export function agregarMovimiento(wb, a) {
   return { hoja: "Movimientos", fila: r, tipo: a.tipo || "Egreso", monto, categoria: a.categoria, medio_pago: a.medio_pago || null };
 }
 
-export function actualizarIpc(wb, a) {
-  const ws = wb.getWorksheet("Inflacion INDEC");
-  const mm = (a.mes || "").slice(0, 7);
-  for (let r = HDR + 1; r <= HDR + 60; r++) {
-    const b = ws.getRow(r).getCell(2).value;
-    if (b instanceof Date) {
-      const key = b.getFullYear() + "-" + String(b.getMonth() + 1).padStart(2, "0");
-      if (key === mm) {
-        ws.getRow(r).getCell(3).value = Number(a.indice);
-        return { hoja: "Inflacion INDEC", fila: r, mes: mm, indice: a.indice };
-      }
-    }
-  }
-  throw new Error("El mes " + mm + " no está en la tabla de Inflacion INDEC (2022-2026).");
-}
 
 export function resumenMensual(wb, mes) {
   const par = wb.getWorksheet("Parametros");

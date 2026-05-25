@@ -43,6 +43,10 @@ export default function Home() {
 
   async function toggleRec() {
     if (grabando) { recRef.current && recRef.current.stop(); return; }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setEstado("El micrófono requiere abrir la app desde http://localhost:3000 (o configurar HTTPS). El hostname personalizado no tiene acceso al micrófono por restricciones del navegador.");
+      return;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const rec = new MediaRecorder(stream);
@@ -145,19 +149,19 @@ export default function Home() {
 
       <section className="stats">
         <div className="stat ingresos">
-          <div className="lbl"><span className="dot" />Ingresos del año</div>
+          <div className="lbl"><span className="dot" />Ingresos del mes</div>
           <div className="val">{stats ? fmt(stats.total_ingresos) : "—"}</div>
-          <div className="sub">alquileres + otros</div>
+          <div className="sub">{stats?.mes_nombre ? `${stats.mes_nombre} · alquileres + otros` : "alquileres + otros"}</div>
         </div>
         <div className="stat egresos">
-          <div className="lbl"><span className="dot" />Egresos del año</div>
+          <div className="lbl"><span className="dot" />Egresos del mes</div>
           <div className="val">{stats ? fmt(stats.egresos) : "—"}</div>
-          <div className="sub">gastos cargados</div>
+          <div className="sub">{stats?.mes_nombre ? `${stats.mes_nombre} · gastos cargados` : "gastos cargados"}</div>
         </div>
         <div className="stat neto">
-          <div className="lbl"><span className="dot" />Resultado neto</div>
+          <div className="lbl"><span className="dot" />Resultado del mes</div>
           <div className="val">{stats ? fmt(stats.resultado_neto) : "—"}</div>
-          <div className="sub">lo ahorrado</div>
+          <div className="sub">{stats?.mes_nombre ? `${stats.mes_nombre} · lo ahorrado` : "lo ahorrado"}</div>
         </div>
       </section>
 

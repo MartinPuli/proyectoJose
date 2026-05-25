@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { writeWorkbookBuffer } from "../../../lib/blob.js";
 import { loadWB } from "../../../lib/excel.js";
 
-const HOJAS_REQUERIDAS = ["Cobros", "Movimientos", "Inquilinos", "Inflacion INDEC", "Parametros"];
+const HOJAS_REQUERIDAS = ["Cobros", "Movimientos", "Inquilinos", "Parametros"];
 
 export async function POST(req) {
   try {

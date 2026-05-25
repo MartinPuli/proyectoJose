@@ -1,5 +1,6 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 import { NextResponse } from "next/server";
 import { readWorkbookBuffer, writeWorkbookBuffer } from "../../../lib/blob.js";
 import { loadWB, wbToBuffer } from "../../../lib/excel.js";
