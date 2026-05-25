@@ -359,11 +359,16 @@ function exec(wb, name, args) {
   }
 }
 
+// Saca BOM/espacios invisibles que a veces aparecen al cargar env vars
+// desde PowerShell (UTF-16 LE con BOM); ya pasó con GEMINI_API_KEY antes.
+function clean(s) { return String(s || "").replace(/^﻿/, "").trim(); }
+
 export async function procesar({ texto, fileBase64, mime, wb }) {
-  if (!process.env.GEMINI_API_KEY) throw new Error("Falta GEMINI_API_KEY.");
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  const apiKey = clean(process.env.GEMINI_API_KEY);
+  if (!apiKey) throw new Error("Falta GEMINI_API_KEY.");
+  const ai = new GoogleGenAI({ apiKey });
   const chat = ai.chats.create({
-    model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+    model: clean(process.env.GEMINI_MODEL) || "gemini-2.5-flash",
     config: {
       systemInstruction: SYSTEM,
       tools: [{ functionDeclarations: declaraciones }],
