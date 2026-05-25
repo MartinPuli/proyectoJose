@@ -1,5 +1,5 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { agregarCobro, agregarMovimiento, actualizarIpc, listarInquilinos, resumenMensual } from "./excel.js";
+import { GoogleGenAI } from "@google/genai";
+import { agregarCobro, agregarMovimiento, listarInquilinos, resumenMensual } from "./excel.js";
 
 const CATEGORIAS =
   "Vivienda/Expensas, Servicios (luz/gas/agua), Internet/Teléfono, Supermercado/Comida, " +
@@ -12,7 +12,7 @@ function buildSystem() {
   return `Sos el asistente de finanzas de una familia que vive de alquileres de locales.
 Hoy es ${hoy}. Cuando el usuario manda un audio, texto o comprobante, identificá las operaciones
 y cargalas con las herramientas: agregar_cobro (alquileres; identificá al inquilino por nombre o
-local), agregar_movimiento (gastos/ingresos de la familia), actualizar_ipc (índice INDEC, mes YYYY-MM).
+local), agregar_movimiento (gastos/ingresos de la familia).
 
 REGLAS IMPORTANTES:
 - Para registrar SIEMPRE llamá a la herramienta correspondiente. NUNCA digas que registraste,
@@ -24,7 +24,12 @@ REGLAS IMPORTANTES:
 - MONEDA: "dólares", "dolar", "USD", "U$S", "verdes" => USD. "pesos", "mango", "$", o sin aclarar => ARS.
   "luca"/"lucas" = miles; "palo"/"palos" = millones. Default ARS.
 - Para egresos elegí EXACTAMENTE una de estas categorías: ${CATEGORIAS}.
-- Si mencionan a un miembro (yo, mi hermana, mi mamá) completá 'miembro'.
+- MIEMBRO: completá 'miembro' con EXACTAMENTE uno de estos valores: "José", "Clara", "Laura", "Familia".
+  Mapeo:
+    · "soy José" / "yo" / "José" / "pagué yo" => José
+    · "soy Clara" / "Clara" / "mi hermana" / "la hermana" => Clara
+    · "soy Laura" / "Laura" / "mi mamá" / "mamá" / "mami" => Laura
+    · gastos compartidos o cuando no se aclara => Familia (default)
 - Completá 'descripcion' con un texto corto de qué fue el gasto/ingreso.
 - MEDIO DE PAGO: si dicen cómo se pagó o cobró, completá SIEMPRE 'medio_pago' con EXACTAMENTE
   una de estas opciones: Efectivo, Transferencia, Cheque, Débito, Mercado Pago, Otro.
@@ -44,12 +49,9 @@ const declaraciones = [
   { name: "agregar_movimiento", description: "Registra un ingreso o egreso de la familia.",
     parameters: { type: "OBJECT", properties: {
       monto: { type: "NUMBER" }, tipo: { type: "STRING", description: "Ingreso o Egreso" },
-      miembro: { type: "STRING", description: "Yo, Hermana, Mamá o Familia" }, categoria: { type: "STRING" },
+      miembro: { type: "STRING", description: "EXACTAMENTE uno de: José, Clara, Laura, Familia" }, categoria: { type: "STRING" },
       descripcion: { type: "STRING" }, fecha: { type: "STRING" }, moneda: { type: "STRING" },
       medio_pago: { type: "STRING" }, notas: { type: "STRING" } }, required: ["monto"] } },
-  { name: "actualizar_ipc", description: "Carga el índice IPC del INDEC para un mes.",
-    parameters: { type: "OBJECT", properties: {
-      mes: { type: "STRING", description: "YYYY-MM" }, indice: { type: "NUMBER" } }, required: ["mes", "indice"] } },
   { name: "listar_inquilinos", description: "Lista los inquilinos (id, nombre, local).",
     parameters: { type: "OBJECT", properties: {} } },
   { name: "resumen_mensual", description: "Resumen de ingresos/egresos (mes 1-12, 0=año).",
@@ -61,7 +63,6 @@ function exec(wb, name, args) {
   switch (name) {
     case "agregar_cobro": return agregarCobro(wb, args);
     case "agregar_movimiento": return agregarMovimiento(wb, args);
-    case "actualizar_ipc": return actualizarIpc(wb, args);
     case "listar_inquilinos": return listarInquilinos(wb);
     case "resumen_mensual": return resumenMensual(wb, args.mes || 0);
     default: return { error: "tool desconocida: " + name };
@@ -79,34 +80,36 @@ function aHistorialGemini(historial) {
 
 export async function procesar({ texto, fileBase64, mime, wb, historial }) {
   if (!process.env.GEMINI_API_KEY) throw new Error("Falta GEMINI_API_KEY.");
-  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-  const model = genAI.getGenerativeModel({
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  const chat = ai.chats.create({
     model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
-    systemInstruction: buildSystem(),
-    tools: [{ functionDeclarations: declaraciones }],
+    config: {
+      systemInstruction: buildSystem(),
+      tools: [{ functionDeclarations: declaraciones }],
+    },
+    history: aHistorialGemini(historial),
   });
+
   const parts = [];
   if (fileBase64) parts.push({ inlineData: { data: fileBase64, mimeType: mime || "application/octet-stream" } });
   parts.push({ text: texto || "Procesá el comprobante adjunto y cargá lo que corresponda." });
 
-  const chat = model.startChat({ history: aHistorialGemini(historial) });
-  let result = await chat.sendMessage(parts);
+  let response = await chat.sendMessage({ message: parts });
   const operaciones = [];
   for (let i = 0; i < 6; i++) {
-    const calls = (result.response.functionCalls && result.response.functionCalls()) || [];
+    const calls = response.functionCalls || [];
     if (!calls.length) break;
-    const responses = [];
+    const responseParts = [];
     for (const c of calls) {
       let out;
       try { out = exec(wb, c.name, c.args); } catch (e) { out = { error: String(e.message || e) }; }
       if (out && out.hoja) operaciones.push(out);
-      responses.push({ functionResponse: { name: c.name, response: { result: out } } });
+      responseParts.push({ functionResponse: { name: c.name, response: { result: out } } });
     }
-    result = await chat.sendMessage(responses);
+    response = await chat.sendMessage({ message: responseParts });
   }
-  let resumen = "";
-  try { resumen = result.response.text(); } catch (e) { resumen = ""; }
-  resumen = (resumen || "").trim();
+
+  const resumen = (response.text || "").trim();
   // Necesita respuesta del usuario si no registró nada, o si terminó preguntando algo.
   const pregunta = operaciones.length === 0 || /\?\s*$/.test(resumen);
   return { resumen, operaciones, pregunta };

@@ -9,7 +9,7 @@
     "seed": "node scripts/seed-blob.mjs"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.21.0",
+    "@google/genai": "^1.0.0",
     "@vercel/blob": "^2.4.0",
     "exceljs": "^4.4.0",
     "next": "^14.2.35",

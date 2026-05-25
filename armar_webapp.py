@@ -21,7 +21,7 @@ FILES["package.json"] = r'''{
     "seed": "node scripts/seed-blob.mjs"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.21.0",
+    "@google/genai": "^1.0.0",
     "@vercel/blob": "^0.27.0",
     "exceljs": "^4.4.0",
     "next": "14.2.35",
@@ -315,7 +315,7 @@ export async function writeWorkbookBuffer(buf) {
 }
 '''
 
-FILES["lib/gemini.js"] = r'''import { GoogleGenerativeAI } from "@google/generative-ai";
+FILES["lib/gemini.js"] = r'''import { GoogleGenAI } from "@google/genai";
 import { agregarCobro, agregarMovimiento, actualizarIpc, listarInquilinos, resumenMensual } from "./excel.js";
 
 const SYSTEM = `Sos el asistente de finanzas de una familia que vive de alquileres de locales.
@@ -361,34 +361,33 @@ function exec(wb, name, args) {
 
 export async function procesar({ texto, fileBase64, mime, wb }) {
   if (!process.env.GEMINI_API_KEY) throw new Error("Falta GEMINI_API_KEY.");
-  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-  const model = genAI.getGenerativeModel({
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  const chat = ai.chats.create({
     model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
-    systemInstruction: SYSTEM,
-    tools: [{ functionDeclarations: declaraciones }],
+    config: {
+      systemInstruction: SYSTEM,
+      tools: [{ functionDeclarations: declaraciones }],
+    },
   });
   const parts = [];
   if (fileBase64) parts.push({ inlineData: { data: fileBase64, mimeType: mime || "application/octet-stream" } });
   parts.push({ text: texto || "Procesá el comprobante adjunto y cargá lo que corresponda." });
 
-  const chat = model.startChat();
-  let result = await chat.sendMessage(parts);
+  let response = await chat.sendMessage({ message: parts });
   const operaciones = [];
   for (let i = 0; i < 6; i++) {
-    const calls = (result.response.functionCalls && result.response.functionCalls()) || [];
+    const calls = response.functionCalls || [];
     if (!calls.length) break;
-    const responses = [];
+    const responseParts = [];
     for (const c of calls) {
       let out;
       try { out = exec(wb, c.name, c.args); } catch (e) { out = { error: String(e.message || e) }; }
       if (out && out.hoja) operaciones.push(out);
-      responses.push({ functionResponse: { name: c.name, response: { result: out } } });
+      responseParts.push({ functionResponse: { name: c.name, response: { result: out } } });
     }
-    result = await chat.sendMessage(responses);
+    response = await chat.sendMessage({ message: responseParts });
   }
-  let resumen = "";
-  try { resumen = result.response.text(); } catch (e) { resumen = ""; }
-  return { resumen: (resumen || "").trim(), operaciones };
+  return { resumen: (response.text || "").trim(), operaciones };
 }
 '''
 
