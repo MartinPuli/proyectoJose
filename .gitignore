@@ -25,3 +25,7 @@ UsersmartidocumentsproyectojoseproyectoJose/
 # Screenshots temporales de verificacion
 *.png
 !finanzas-ui.png
+
+# Backups locales del Excel (red de seguridad antes de operaciones grandes)
+*.xlsx.bak
+*.xlsx.bak-*
