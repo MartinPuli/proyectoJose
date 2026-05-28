@@ -1,14 +1,9 @@
 import { GoogleGenAI } from "@google/genai";
-import { agregarCobro, agregarMovimiento, listarInquilinos, resumenMensual } from "./excel.js";
+import { agregarCobro, agregarMovimiento, listarInquilinos, listarCategorias, resumenMensual } from "./excel.js";
 
-const CATEGORIAS =
-  "Vivienda/Expensas, Servicios (luz/gas/agua), Internet/Teléfono, Supermercado/Comida, " +
-  "Salud/Obra social, Transporte/Auto, Educación, Impuestos (ABL/AFIP/Rentas), " +
-  "Mantenimiento locales, Seguros, Honorarios/Gestión, Ocio/Viajes, Indumentaria, " +
-  "Ahorro/Inversión, Otros";
-
-function buildSystem() {
+function buildSystem(wb) {
   const hoy = new Date().toISOString().slice(0, 10);
+  const CATEGORIAS = listarCategorias(wb).join(", ") || "Otros";
   return `Sos el asistente de finanzas de una familia que vive de alquileres de locales.
 Hoy es ${hoy}. Cuando el usuario manda un audio, texto o comprobante, identificá las operaciones
 y cargalas con las herramientas: agregar_cobro (alquileres; identificá al inquilino por nombre o
@@ -54,6 +49,8 @@ const declaraciones = [
       medio_pago: { type: "STRING" }, notas: { type: "STRING" } }, required: ["monto"] } },
   { name: "listar_inquilinos", description: "Lista los inquilinos (id, nombre, local).",
     parameters: { type: "OBJECT", properties: {} } },
+  { name: "listar_categorias", description: "Lista las categorías válidas para 'agregar_movimiento' (las del Presupuesto). Si no usás una de estas, el egreso no aparece en el Presupuesto.",
+    parameters: { type: "OBJECT", properties: {} } },
   { name: "resumen_mensual", description: "Resumen de ingresos/egresos (mes 1-12, 0=año).",
     parameters: { type: "OBJECT", properties: { mes: { type: "INTEGER" } } } },
 ];
@@ -64,6 +61,7 @@ function exec(wb, name, args) {
     case "agregar_cobro": return agregarCobro(wb, args);
     case "agregar_movimiento": return agregarMovimiento(wb, args);
     case "listar_inquilinos": return listarInquilinos(wb);
+    case "listar_categorias": return listarCategorias(wb);
     case "resumen_mensual": return resumenMensual(wb, args.mes || 0);
     default: return { error: "tool desconocida: " + name };
   }
@@ -89,7 +87,7 @@ export async function procesar({ texto, fileBase64, mime, wb, historial }) {
   const chat = ai.chats.create({
     model: clean(process.env.GEMINI_MODEL) || "gemini-2.5-flash",
     config: {
-      systemInstruction: buildSystem(),
+      systemInstruction: buildSystem(wb),
       tools: [{ functionDeclarations: declaraciones }],
     },
     history: aHistorialGemini(historial),

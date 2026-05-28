@@ -41,6 +41,43 @@ const esUSD = (moneda) => String(moneda || "").toUpperCase() === "USD";
 const aARS = (monto, moneda, tc) => Math.round(Number(monto) * (esUSD(moneda) ? tc : 1));
 const aUSD = (monto, moneda, tc) => Math.round(esUSD(moneda) ? Number(monto) : Number(monto) / tc);
 
+export function listarCategorias(wb) {
+  const ws = wb.getWorksheet("Presupuesto");
+  if (!ws) return [];
+  const out = [];
+  for (let r = HDR + 1; r <= HDR + 15; r++) {
+    const v = ws.getRow(r).getCell(1).value;
+    if (v && String(v).trim().toUpperCase() !== "TOTAL") out.push(String(v).trim());
+  }
+  return out;
+}
+
+// Mapea texto libre (lo que sugiere el LLM) a una de las categorías exactas del
+// Presupuesto. Si nada matchea => "Otros". Sin esto el SUMIFS del Presupuesto
+// devuelve 0 cuando la categoría guardada no coincide exacto (ej. "seguro auto").
+function _toks(s) {
+  return s.replace(/[\/()\-,.]/g, " ").split(/\s+/).filter((t) => t.length >= 3);
+}
+export function normalizarCategoria(wb, categoria) {
+  if (!categoria) return "Otros";
+  const cats = listarCategorias(wb);
+  if (!cats.length) return categoria;
+  const c = String(categoria).trim();
+  for (const x of cats) if (c === x) return x;
+  const cl = c.toLowerCase();
+  for (const x of cats) if (cl === x.toLowerCase()) return x;
+  for (const x of cats) { const xl = x.toLowerCase(); if (cl.includes(xl) || xl.includes(cl)) return x; }
+  const inTok = _toks(cl);
+  for (const tok of inTok) {
+    for (const x of cats) {
+      for (const xt of _toks(x.toLowerCase())) {
+        if (tok === xt || tok.startsWith(xt) || xt.startsWith(tok)) return x;
+      }
+    }
+  }
+  return "Otros";
+}
+
 export function listarInquilinos(wb) {
   const ws = wb.getWorksheet("Inquilinos");
   const out = [];
@@ -110,9 +147,12 @@ export function agregarMovimiento(wb, a) {
   const c1 = row.getCell(1); c1.value = f; c1.numFmt = "dd/mm/yyyy";
   // Mes (col 2): fórmula =MONTH(fecha) con el valor ya cacheado para que se vea al instante.
   row.getCell(2).value = { formula: `IF($A${r}="","",MONTH($A${r}))`, result: f.getMonth() + 1 };
-  row.getCell(3).value = a.tipo || "Egreso";
+  const tipo = a.tipo || "Egreso";
+  row.getCell(3).value = tipo;
   row.getCell(4).value = a.miembro || "Familia";
-  row.getCell(5).value = a.categoria || null;
+  // Normalizar a una categoría del Presupuesto solo para egresos (los ingresos no se contabilizan ahí).
+  const cat = String(tipo).toLowerCase() === "egreso" ? normalizarCategoria(wb, a.categoria) : (a.categoria || null);
+  row.getCell(5).value = cat;
   row.getCell(6).value = a.descripcion || null;
   row.getCell(7).value = monto;
   row.getCell(8).value = moneda;
@@ -123,7 +163,7 @@ export function agregarMovimiento(wb, a) {
   row.getCell(10).value = a.medio_pago || null;
   row.getCell(11).value = a.notas || null;
   row.commit && row.commit();
-  return { hoja: "Movimientos", fila: r, tipo: a.tipo || "Egreso", monto, categoria: a.categoria, medio_pago: a.medio_pago || null };
+  return { hoja: "Movimientos", fila: r, tipo, monto, categoria: cat, medio_pago: a.medio_pago || null };
 }
 
 

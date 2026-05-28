@@ -18,9 +18,14 @@ Hoy es {fecha}. Cuando el usuario te manda un audio, texto o comprobante, identi
 operaciones y cargalas usando las herramientas disponibles:
 - Cobros de alquiler -> agregar_cobro (identificá al inquilino por nombre o local; usá listar_inquilinos si hace falta).
 - Gastos o ingresos de la familia -> agregar_movimiento.
-- Dato del IPC del INDEC -> actualizar_ipc (mes YYYY-MM).
-Reglas: si no dicen el año, asumí el actual; moneda por defecto ARS; para egresos elegí
-una categoría razonable. Después de cargar, respondé en español qué registraste."""
+
+Reglas:
+- Si no dicen el año, asumí el actual; moneda por defecto ARS.
+- Para EGRESOS, el campo `categoria` DEBE ser exactamente uno de estos valores (no inventes
+  variantes ni traduzcas; el resumen del Presupuesto cuenta sólo coincidencias exactas):
+  {categorias}
+  Si dudás, usá "Otros". Si necesitás verla en runtime, llamá a listar_categorias.
+- Después de cargar, respondé en español qué registraste."""
 
 def procesar(texto: str = "", file_bytes: bytes = None, mime: str = "", filename: str = "") -> dict:
     if not config.GEMINI_API_KEY:
@@ -35,7 +40,10 @@ def procesar(texto: str = "", file_bytes: bytes = None, mime: str = "", filename
         model=config.GEMINI_MODEL,
         contents=[types.Content(role="user", parts=parts)],
         config=types.GenerateContentConfig(
-            system_instruction=SYSTEM.format(fecha=date.today()),
+            system_instruction=SYSTEM.format(
+                fecha=date.today(),
+                categorias=" | ".join(core.listar_categorias()) or "Otros",
+            ),
             tools=core.TOOLS,
         ),
     )

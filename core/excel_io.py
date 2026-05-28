@@ -34,6 +34,20 @@ def tipo_cambio():
     finally:
         wb.close()
 
+def categorias_presupuesto():
+    """Devuelve las categorías válidas leídas de la hoja Presupuesto (A5:A19)."""
+    wb = load_workbook(EXCEL_PATH, read_only=True, data_only=True)
+    out = []
+    try:
+        for row in wb["Presupuesto"].iter_rows(min_row=HDR + 1, max_row=HDR + 15):
+            v = row[0].value
+            if v and str(v).strip().upper() != "TOTAL":
+                out.append(str(v).strip())
+    finally:
+        wb.close()
+    return out
+
+
 def inquilinos():
     wb = load_workbook(EXCEL_PATH, read_only=True, data_only=True)
     out = []

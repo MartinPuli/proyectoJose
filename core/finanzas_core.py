@@ -19,6 +19,53 @@ def listar_inquilinos() -> list:
     """Devuelve la lista de inquilinos (id, nombre, local) para identificar cobros."""
     return io.inquilinos()
 
+def listar_categorias() -> list:
+    """Devuelve las categorías de gasto válidas (las que figuran en la hoja Presupuesto).
+
+    El gasto real del Presupuesto se calcula con SUMIFS sobre Movimientos filtrando
+    por la columna Categoría: si la categoría guardada no coincide exacto con una de
+    estas, el gasto no aparece en Presupuesto. Usar siempre uno de estos valores.
+    """
+    return io.categorias_presupuesto()
+
+def _normalizar_categoria(categoria: str) -> str:
+    """Mapea la categoría que sugiere el LLM a una válida del Presupuesto.
+
+    Estrategia: prioriza el primer token significativo del input (suele ser el
+    sustantivo principal, ej "seguro" en "seguro auto"). Si nada matchea, "Otros".
+    """
+    if not categoria:
+        return "Otros"
+    cats = io.categorias_presupuesto()
+    if not cats:
+        return categoria
+    c = categoria.strip()
+    for x in cats:
+        if c == x:
+            return x
+    cl = c.lower()
+    for x in cats:
+        if cl == x.lower():
+            return x
+    for x in cats:
+        xl = x.lower()
+        if cl in xl or xl in cl:
+            return x
+
+    def _toks(s):
+        for ch in "/()-,.":
+            s = s.replace(ch, " ")
+        return [t for t in s.split() if len(t) >= 3]
+
+    in_toks = _toks(cl)
+    for tok in in_toks:
+        for x in cats:
+            x_toks = _toks(x.lower())
+            for xt in x_toks:
+                if tok == xt or tok.startswith(xt) or xt.startswith(tok):
+                    return x
+    return "Otros"
+
 def agregar_cobro(monto: float, inquilino: str = "", id_inquilino: int = 0,
                   fecha: str = "", moneda: str = "ARS", medio_pago: str = "",
                   estado: str = "Cobrado", periodo: str = "", notas: str = "") -> dict:
@@ -36,19 +83,27 @@ def agregar_cobro(monto: float, inquilino: str = "", id_inquilino: int = 0,
         notas: observaciones.
     """
     idn = io.resolver_id(id_inquilino, inquilino)
+    f = io.parse_fecha(fecha)
+    mon = (moneda or "ARS").upper()
+    tc = io.tipo_cambio() or 1
+    monto_ars = float(monto) * (tc if mon == "USD" else 1)
+    monto_usd = float(monto) if mon == "USD" else (float(monto) / tc if tc else 0)
     wb = io.open_write()
     ws = wb["Cobros"]
     r = io._next_row(ws, 1, io.HDR + 1, io.HDR + 400)
-    ws.cell(row=r, column=1, value=io.parse_fecha(fecha))
+    ws.cell(row=r, column=1, value=f)
     ws.cell(row=r, column=2, value=idn)
+    ws.cell(row=r, column=4, value=f.month)
     ws.cell(row=r, column=5, value=periodo or None)
     ws.cell(row=r, column=6, value=monto)
-    ws.cell(row=r, column=7, value=(moneda or "ARS").upper())
+    ws.cell(row=r, column=7, value=mon)
+    ws.cell(row=r, column=8, value=monto_ars)
+    ws.cell(row=r, column=9, value=monto_usd)
     ws.cell(row=r, column=10, value=medio_pago or None)
     ws.cell(row=r, column=11, value=estado or "Cobrado")
     ws.cell(row=r, column=12, value=notas or None)
     io.backup(); io.save(wb)
-    res = {"hoja": "Cobros", "fila": r, "id_inquilino": idn, "monto": monto, "moneda": moneda}
+    res = {"hoja": "Cobros", "fila": r, "id_inquilino": idn, "monto": monto, "moneda": mon, "monto_ars": monto_ars}
     _LOG.append(res)
     return res
 
@@ -68,20 +123,27 @@ def agregar_movimiento(monto: float, tipo: str = "Egreso", miembro: str = "Famil
         medio_pago: medio de pago.
         notas: observaciones.
     """
+    cat_norm = _normalizar_categoria(categoria) if (tipo or "Egreso").lower() == "egreso" else (categoria or None)
+    f = io.parse_fecha(fecha)
+    mon = (moneda or "ARS").upper()
+    tc = io.tipo_cambio() or 1
+    monto_ars = float(monto) * (tc if mon == "USD" else 1)
     wb = io.open_write()
     ws = wb["Movimientos"]
     r = io._next_row(ws, 1, io.HDR + 1, io.HDR + 400)
-    ws.cell(row=r, column=1, value=io.parse_fecha(fecha))
+    ws.cell(row=r, column=1, value=f)
+    ws.cell(row=r, column=2, value=f.month)
     ws.cell(row=r, column=3, value=tipo or "Egreso")
     ws.cell(row=r, column=4, value=miembro or "Familia")
-    ws.cell(row=r, column=5, value=categoria or None)
+    ws.cell(row=r, column=5, value=cat_norm or None)
     ws.cell(row=r, column=6, value=descripcion or None)
     ws.cell(row=r, column=7, value=monto)
-    ws.cell(row=r, column=8, value=(moneda or "ARS").upper())
+    ws.cell(row=r, column=8, value=mon)
+    ws.cell(row=r, column=9, value=monto_ars)
     ws.cell(row=r, column=10, value=medio_pago or None)
     ws.cell(row=r, column=11, value=notas or None)
     io.backup(); io.save(wb)
-    res = {"hoja": "Movimientos", "fila": r, "tipo": tipo, "monto": monto, "categoria": categoria}
+    res = {"hoja": "Movimientos", "fila": r, "tipo": tipo, "monto": monto, "categoria": cat_norm, "monto_ars": monto_ars}
     _LOG.append(res)
     return res
 
@@ -146,4 +208,4 @@ def resumen_mensual(mes: int = 0) -> dict:
     }
 
 # lista de tools para registrar en Gemini / MCP
-TOOLS = [agregar_cobro, agregar_movimiento, actualizar_ipc, listar_inquilinos, resumen_mensual]
+TOOLS = [agregar_cobro, agregar_movimiento, listar_inquilinos, listar_categorias, resumen_mensual]

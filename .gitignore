@@ -29,3 +29,4 @@ UsersmartidocumentsproyectojoseproyectoJose/
 # Backups locales del Excel (red de seguridad antes de operaciones grandes)
 *.xlsx.bak
 *.xlsx.bak-*
+backups/

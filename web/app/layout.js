@@ -11,10 +11,14 @@ export const viewport = {
   initialScale: 1,
 };
 
+// Aplica el tema antes del primer paint para evitar el flash claro→oscuro.
+const setearTema = `(function(){try{var t=localStorage.getItem('tema');if(!t){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`;
+
 export default function RootLayout({ children }) {
   return (
     <html lang="es">
       <head>
+        <script dangerouslySetInnerHTML={{ __html: setearTema }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link

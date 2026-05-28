@@ -1,6 +1,37 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 
+function ThemeToggle() {
+  const [tema, setTema] = useState("light");
+  useEffect(() => {
+    const inicial = document.documentElement.getAttribute("data-theme") || "light";
+    setTema(inicial);
+  }, []);
+  function toggle() {
+    const next = tema === "dark" ? "light" : "dark";
+    setTema(next);
+    document.documentElement.setAttribute("data-theme", next);
+    try { localStorage.setItem("tema", next); } catch (e) {}
+  }
+  const esDark = tema === "dark";
+  return (
+    <button type="button" className="theme-toggle" onClick={toggle}
+            aria-label={esDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
+            title={esDark ? "Modo claro" : "Modo oscuro"}>
+      {esDark ? (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4" />
+          <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+        </svg>
+      ) : (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
 const fmt = (n) =>
   new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(Number(n) || 0);
 
@@ -128,6 +159,7 @@ export default function Home() {
           </a>
           <div className="topbar-actions">
             <span className="year-pill">2026</span>
+            <ThemeToggle />
             <a href="/api/excel" className="topbar-excel">
               <button type="button" className="btn btn-ghost">
                 <svg viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true">
@@ -211,7 +243,7 @@ export default function Home() {
         <section className="card result">
           <div className="card-head">
             <h2>Conversación</h2>
-            {pregunta && <span className="hint" style={{ color: "#b45309" }}>esperando tu respuesta</span>}
+            {pregunta && <span className="hint hint-warn">esperando tu respuesta</span>}
           </div>
 
           {salida && salida.error && <div className="alert">⚠️ {salida.error}</div>}
@@ -223,19 +255,8 @@ export default function Home() {
               return (
                 <div
                   key={i}
-                  className={"bubble " + (esIA ? "ia" : "yo")}
-                  style={{
-                    alignSelf: esIA ? "flex-start" : "flex-end",
-                    maxWidth: "85%",
-                    padding: "9px 13px",
-                    borderRadius: 14,
-                    fontSize: 14,
-                    lineHeight: 1.4,
-                    whiteSpace: "pre-wrap",
-                    background: esIA ? (ultimo && pregunta ? "#fef3c7" : "#f1f5f9") : "#111827",
-                    color: esIA ? "#0f172a" : "#fff",
-                    border: esIA && ultimo && pregunta ? "1px solid #f59e0b" : "1px solid transparent",
-                  }}
+                  className={"bubble " + (esIA ? "ia" : "yo") + (ultimo && pregunta && esIA ? " preguntando" : "")}
+                  style={{ alignSelf: esIA ? "flex-start" : "flex-end" }}
                 >
                   {esIA ? (ultimo && pregunta ? "🤔 " : "") : "🗣️ "}{m.texto}
                 </div>

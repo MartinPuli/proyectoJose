@@ -37,14 +37,17 @@ def agregar_movimiento(monto: float, tipo: str = "Egreso", miembro: str = "Famil
                                    fecha, moneda, medio_pago, notas)
 
 @mcp.tool()
-def actualizar_ipc(mes: str, indice: float) -> dict:
-    """Carga el índice IPC del INDEC para un mes (YYYY-MM)."""
-    return core.actualizar_ipc(mes, indice)
-
-@mcp.tool()
 def listar_inquilinos() -> list:
     """Lista los inquilinos (id, nombre, local)."""
     return core.listar_inquilinos()
+
+@mcp.tool()
+def listar_categorias() -> list:
+    """Lista las categorías válidas para `agregar_movimiento` (las del Presupuesto).
+
+    Si no usás uno de estos valores exactos, el egreso no aparece en la hoja Presupuesto.
+    """
+    return core.listar_categorias()
 
 @mcp.tool()
 def resumen_mensual(mes: int = 0) -> dict:
