@@ -197,3 +197,119 @@ export function resumenMensual(wb, mes) {
     resultado_neto: Math.round(totalIng - egr), moneda: "ARS",
   };
 }
+
+const MES_NOMBRES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+
+// Datos crudos para que la IA arme conclusiones de fin de mes: mes actual + 3 meses
+// previos por categoría, cobros pendientes y top egresos. NO juzga, solo agrupa.
+export function analisisMes(wb, mesObjetivo) {
+  const par = wb.getWorksheet("Parametros");
+  const tc = Number(par && par.getCell("B4").value) || 1;
+  const toARS = (monto, moneda) => Number(monto) * (String(moneda || "").toUpperCase() === "USD" ? tc : 1);
+  const hoy = new Date();
+  const mes = Number(mesObjetivo) || (hoy.getMonth() + 1);
+  const anio = hoy.getFullYear();
+
+  const cob = wb.getWorksheet("Cobros");
+  let alquileres = 0;
+  const inquilinosCobrados = new Set();
+  for (let r = HDR + 1; r <= HDR + 400; r++) {
+    const row = cob.getRow(r);
+    const f = row.getCell(1).value, id = row.getCell(2).value;
+    const monto = row.getCell(6).value, mon = row.getCell(7).value;
+    if (monto && f instanceof Date && f.getMonth() + 1 === mes && f.getFullYear() === anio) {
+      alquileres += toARS(monto, mon);
+      if (id) inquilinosCobrados.add(String(id));
+    }
+  }
+
+  const mov = wb.getWorksheet("Movimientos");
+  const egresosMes = {};
+  const ingresosOtros = { total: 0 };
+  const detalleEgresos = [];
+  for (let r = HDR + 1; r <= HDR + 400; r++) {
+    const row = mov.getRow(r);
+    const f = row.getCell(1).value;
+    if (!(f instanceof Date)) continue;
+    const tipo = String(row.getCell(3).value || "").toLowerCase();
+    const miembro = row.getCell(4).value || "";
+    const cat = row.getCell(5).value || "Otros";
+    const desc = row.getCell(6).value || "";
+    const monto = row.getCell(7).value, mon = row.getCell(8).value;
+    if (!monto) continue;
+    const ars = toARS(monto, mon);
+    if (f.getMonth() + 1 === mes && f.getFullYear() === anio) {
+      if (tipo === "egreso") {
+        egresosMes[cat] = (egresosMes[cat] || 0) + ars;
+        detalleEgresos.push({ fecha: f.toISOString().slice(0, 10), categoria: String(cat), descripcion: String(desc), monto: Math.round(ars), miembro: String(miembro) });
+      } else if (tipo === "ingreso") {
+        ingresosOtros.total += ars;
+      }
+    }
+  }
+
+  const previosPorCat = {};
+  const previosTotales = [];
+  for (let offset = 1; offset <= 3; offset++) {
+    let m = mes - offset, a = anio;
+    while (m <= 0) { m += 12; a -= 1; }
+    const acumCat = {};
+    let totalEgr = 0;
+    for (let r = HDR + 1; r <= HDR + 400; r++) {
+      const row = mov.getRow(r);
+      const f = row.getCell(1).value;
+      if (!(f instanceof Date)) continue;
+      if (f.getMonth() + 1 !== m || f.getFullYear() !== a) continue;
+      const tipo = String(row.getCell(3).value || "").toLowerCase();
+      const cat = row.getCell(5).value || "Otros";
+      const monto = row.getCell(7).value, mon = row.getCell(8).value;
+      if (!monto || tipo !== "egreso") continue;
+      const ars = toARS(monto, mon);
+      acumCat[cat] = (acumCat[cat] || 0) + ars;
+      totalEgr += ars;
+    }
+    previosTotales.push({ mes: m, anio: a, nombre: MES_NOMBRES[m - 1], egresos_total: Math.round(totalEgr) });
+    for (const [k, v] of Object.entries(acumCat)) previosPorCat[k] = (previosPorCat[k] || []).concat(v);
+  }
+  const promedioPrevios = {};
+  for (const k of Object.keys(previosPorCat)) {
+    const arr = previosPorCat[k];
+    promedioPrevios[k] = Math.round(arr.reduce((s, x) => s + x, 0) / 3);
+  }
+
+  const inq = wb.getWorksheet("Inquilinos");
+  const pendientes = [];
+  for (let r = HDR + 1; r <= HDR + 33; r++) {
+    const row = inq.getRow(r);
+    const id = row.getCell(1).value;
+    if (!id) continue;
+    const estado = String(row.getCell(14).value || "").trim();
+    if (estado.toLowerCase() !== "activo") continue;
+    if (inquilinosCobrados.has(String(id))) continue;
+    pendientes.push({
+      id, nombre: String(row.getCell(2).value || ""), local: String(row.getCell(3).value || ""),
+      alquiler_ars: Math.round(Number(row.getCell(12).value) || 0),
+    });
+  }
+
+  const totalEgr = Object.values(egresosMes).reduce((s, x) => s + x, 0);
+  return {
+    mes: { numero: mes, nombre: MES_NOMBRES[mes - 1], anio },
+    moneda: "ARS",
+    ingresos: {
+      alquileres: Math.round(alquileres), otros: Math.round(ingresosOtros.total),
+      total: Math.round(alquileres + ingresosOtros.total),
+    },
+    egresos: {
+      total: Math.round(totalEgr),
+      por_categoria: Object.fromEntries(Object.entries(egresosMes).map(([k, v]) => [k, Math.round(v)])),
+    },
+    promedio_meses_previos: {
+      meses: previosTotales,
+      por_categoria: promedioPrevios,
+    },
+    resultado_neto: Math.round(alquileres + ingresosOtros.total - totalEgr),
+    cobros_pendientes: pendientes,
+    top_egresos: detalleEgresos.sort((a, b) => b.monto - a.monto).slice(0, 10),
+  };
+}

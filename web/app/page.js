@@ -1,5 +1,23 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
+import { useSession, signIn, signOut } from "next-auth/react";
+
+function UserBadge() {
+  const { data: session, status } = useSession();
+  if (status === "loading") return null;
+  if (status !== "authenticated") return null;
+  const nombre = session.user?.nombreFamilia || session.user?.name || "";
+  const inicial = String(nombre || "?").trim().charAt(0).toUpperCase();
+  return (
+    <div className="user-badge" title={session.user?.email || ""}>
+      <span className="user-dot">{inicial}</span>
+      <span className="user-name">{nombre}</span>
+      <button type="button" className="user-logout" onClick={() => signOut({ callbackUrl: "/login" })}>
+        Salir
+      </button>
+    </div>
+  );
+}
 
 function ThemeToggle() {
   const [tema, setTema] = useState("light");
@@ -32,6 +50,37 @@ function ThemeToggle() {
   );
 }
 
+function renderNegritas(linea) {
+  const partes = String(linea).split(/(\*\*[^*]+\*\*)/g);
+  return partes.map((p, i) => p.startsWith("**") && p.endsWith("**")
+    ? <strong key={i}>{p.slice(2, -2)}</strong>
+    : <span key={i}>{p}</span>);
+}
+
+function AnalisisTexto({ texto }) {
+  const lineas = String(texto || "").split(/\r?\n/);
+  const bloques = [];
+  let bulletAcc = [];
+  const flush = () => {
+    if (bulletAcc.length) {
+      bloques.push(<ul key={"u" + bloques.length}>{bulletAcc.map((b, i) => <li key={i}>{renderNegritas(b)}</li>)}</ul>);
+      bulletAcc = [];
+    }
+  };
+  for (const raw of lineas) {
+    const l = raw.trim();
+    if (!l) { flush(); continue; }
+    const esBullet = /^[-·*]\s+/.test(l);
+    if (esBullet) { bulletAcc.push(l.replace(/^[-·*]\s+/, "")); continue; }
+    flush();
+    const titulo = /^\*\*[^*]+\*\*$/.test(l);
+    if (titulo) bloques.push(<h3 key={"t" + bloques.length}>{l.replace(/^\*\*|\*\*$/g, "")}</h3>);
+    else bloques.push(<p key={"p" + bloques.length}>{renderNegritas(l)}</p>);
+  }
+  flush();
+  return <div className="analisis">{bloques}</div>;
+}
+
 const fmt = (n) =>
   new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(Number(n) || 0);
 
@@ -55,6 +104,9 @@ export default function Home() {
   const [enviando, setEnviando] = useState(false);
   const [fileName, setFileName] = useState("");
   const [stats, setStats] = useState(null);
+  const [analisis, setAnalisis] = useState(null);
+  const [analizando, setAnalizando] = useState(false);
+  const [errAnalisis, setErrAnalisis] = useState("");
   const fileRef = useRef(null);
   const recRef = useRef(null);
   const chunksRef = useRef([]);
@@ -123,6 +175,17 @@ export default function Home() {
     finally { setEnviando(false); }
   }
 
+  async function analizarMes() {
+    setAnalizando(true); setErrAnalisis(""); setAnalisis(null);
+    try {
+      const r = await fetch("/api/analizar");
+      const d = await r.json();
+      if (d.error) setErrAnalisis(d.error);
+      else setAnalisis(d);
+    } catch (e) { setErrAnalisis(e.message); }
+    finally { setAnalizando(false); }
+  }
+
   function nuevaConsulta() {
     setHistorial([]); setSalida(null); setPregunta(false); setTexto(""); setFileName("");
     if (fileRef.current) fileRef.current.value = "";
@@ -159,6 +222,7 @@ export default function Home() {
           </a>
           <div className="topbar-actions">
             <span className="year-pill">2026</span>
+            <UserBadge />
             <ThemeToggle />
             <a href="/api/excel" className="topbar-excel">
               <button type="button" className="btn btn-ghost">
@@ -196,6 +260,20 @@ export default function Home() {
           <div className="sub">{stats?.mes_nombre ? `${stats.mes_nombre} · lo ahorrado` : "lo ahorrado"}</div>
         </div>
       </section>
+
+      <section className="analisis-bar">
+        <button type="button" className="btn btn-analisis" onClick={analizarMes} disabled={analizando}>
+          {analizando ? "Pensando…" : (analisis ? "↻ Volver a analizar" : "🧠 Analizar el mes con IA")}
+        </button>
+        {analisis && <span className="analisis-hint">{analisis.datos?.mes?.nombre} {analisis.datos?.mes?.anio}</span>}
+      </section>
+
+      {(analisis || errAnalisis) && (
+        <section className="card analisis-card">
+          {errAnalisis && <div className="alert">⚠️ {errAnalisis}</div>}
+          {analisis && <AnalisisTexto texto={analisis.texto} />}
+        </section>
+      )}
 
       <section className="card">
         <div className="card-head">
